@@ -79,7 +79,7 @@
     50%       { opacity: .3; }
   }
 
-  /* ── Pane labels ── */
+  /* ── Pane labels + tabs ── */
   #pane-bar {
     height: 28px;
     background: var(--surface);
@@ -97,7 +97,6 @@
     letter-spacing: .8px;
     border-right: 1px solid var(--border);
   }
-  .pane-label:last-child { border-right: none; }
   .pane-label .badge {
     margin-left: auto;
     font-size: 10px;
@@ -105,6 +104,55 @@
     padding: 1px 6px;
     border-radius: 2px;
   }
+  #right-tabs {
+    flex: 1;
+    display: flex;
+    align-items: stretch;
+  }
+  .tab-btn {
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 11px;
+    font-family: inherit;
+    letter-spacing: .5px;
+    color: var(--text-dim);
+    background: none;
+    border: none;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    transition: color .15s, background .15s;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--text); background: rgba(255,255,255,.04); }
+  .tab-btn.active {
+    color: #fff;
+    border-bottom: 2px solid var(--accent);
+    background: rgba(0,120,212,.08);
+  }
+  .tab-btn .tab-badge {
+    margin-left: 6px;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 2px;
+    background: var(--border);
+    color: var(--text-dim);
+  }
+  .tab-btn.active .tab-badge { background: var(--accent-dim); color: #fff; }
+  #tab-copy {
+    margin-left: auto;
+    align-self: center;
+    margin-right: 10px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  #tab-copy:hover { border-color: var(--accent); color: var(--text); }
 
   /* ── Editors container ── */
   #editors {
@@ -183,9 +231,14 @@
     benchmark.yaml
     <span class="badge">YAML</span>
   </div>
-  <div class="pane-label">
-    Snakefile <em style="font-style:normal;opacity:.5;margin-left:4px">preview</em>
-    <span class="badge">read-only</span>
+  <div id="right-tabs">
+    <button class="tab-btn active" data-tab="snakefile">
+      Snakefile <span class="tab-badge">preview</span>
+    </button>
+    <button class="tab-btn" data-tab="runner">
+      run.sh <span class="tab-badge">bash</span>
+    </button>
+    <button id="tab-copy" title="Copy to clipboard">Copy</button>
   </div>
 </div>
 
@@ -296,9 +349,12 @@ stages:
 `;
 
 // ── State ────────────────────────────────────────────────────────────────────
-let yamlEditor = null;
-let snakeEditor = null;
-let worker = null;
+let yamlEditor  = null;
+let rightEditor = null;          // single editor, two models
+let snakeModel  = null;
+let runnerModel = null;
+let activeTab   = "snakefile";   // "snakefile" | "runner"
+let worker      = null;
 let pyodideReady = false;
 let debounceTimer = null;
 
@@ -306,7 +362,7 @@ let debounceTimer = null;
 require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.0/min/vs" } });
 
 require(["vs/editor/editor.main"], () => {
-  // YAML editor (left)
+  // Left: YAML editor
   yamlEditor = monaco.editor.create(document.getElementById("yaml-editor"), {
     value: SAMPLE_YAML,
     language: "yaml",
@@ -320,10 +376,12 @@ require(["vs/editor/editor.main"], () => {
     tabSize: 2,
   });
 
-  // Snakefile editor (right, read-only)
-  snakeEditor = monaco.editor.create(document.getElementById("snake-editor"), {
-    value: "# Waiting for Pyodide…",
-    language: "python",  // close enough for syntax highlighting
+  // Right: one editor, two models
+  snakeModel  = monaco.editor.createModel("# Waiting for Pyodide…", "python");
+  runnerModel = monaco.editor.createModel("# Waiting for Pyodide…", "shell");
+
+  rightEditor = monaco.editor.create(document.getElementById("snake-editor"), {
+    model: snakeModel,
     theme: "vs-dark",
     fontSize: 13,
     minimap: { enabled: false },
@@ -335,6 +393,27 @@ require(["vs/editor/editor.main"], () => {
   });
 
   yamlEditor.onDidChangeModelContent(() => scheduleConvert());
+
+  // Tab switching
+  document.querySelectorAll(".tab-btn[data-tab]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      activeTab = btn.dataset.tab;
+      document.querySelectorAll(".tab-btn[data-tab]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      rightEditor.setModel(activeTab === "snakefile" ? snakeModel : runnerModel);
+      rightEditor.layout();
+    });
+  });
+
+  // Copy button
+  document.getElementById("tab-copy").addEventListener("click", () => {
+    const text = rightEditor.getValue();
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById("tab-copy");
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+    });
+  });
 
   startWorker();
 });
@@ -362,16 +441,16 @@ function startWorker() {
       case "result":
         setOverlay(null);
         if (data.ok) {
-          snakeEditor.setValue(data.snakefile);
+          snakeModel.setValue(data.snakefile || "");
+          runnerModel.setValue(data.runner || "");
           setPyodideStatus("ready", "Ready");
-          setStatus("ok", "Snakefile updated");
+          setStatus("ok", "Snakefile + run.sh updated");
         } else {
-          // Always show errors in the right panel
           const errText = data.error || "Unknown error";
-          snakeEditor.setValue(
-            "# Error\n#\n" +
-            errText.split("\n").map(l => "# " + l).join("\n") + "\n"
-          );
+          const commented = "# Error\n#\n" +
+            errText.split("\n").map(l => "# " + l).join("\n") + "\n";
+          snakeModel.setValue(commented);
+          runnerModel.setValue(commented);
           setPyodideStatus("error", "Error");
           setStatus("error", errText.split("\n")[0]);
         }
@@ -452,8 +531,8 @@ function setStatus(cls, msg) {
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
     // trigger Monaco layout
-    if (yamlEditor) yamlEditor.layout();
-    if (snakeEditor) snakeEditor.layout();
+    if (yamlEditor)  yamlEditor.layout();
+    if (rightEditor) rightEditor.layout();
   });
 })();
 </script>
