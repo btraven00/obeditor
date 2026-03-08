@@ -330,6 +330,7 @@
 
 <div id="status-bar" class="idle">
   <span id="status-msg">Waiting for Pyodide…</span>
+  <span id="ob-version" style="margin-left:auto;font-size:11px;opacity:.7;"></span>
 </div>
 
 <!-- Mermaid (diagram rendering) -->
@@ -516,6 +517,9 @@ function startWorker() {
         setOverlay(null);
         setPyodideStatus("ready", "Ready");
         setStatus("ok", "Pyodide ready — converting…");
+        if (data.version) {
+          document.getElementById("ob-version").textContent = "omnibenchmark v" + data.version;
+        }
         scheduleConvert(0);
         break;
       case "result":

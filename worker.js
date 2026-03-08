@@ -386,7 +386,14 @@ from omnibenchmark.model.benchmark import Benchmark
     self.postMessage({ type: "status", message: "Initialising preview engine…" });
     await pyodide.runPythonAsync(PREVIEW_PY);
 
-    self.postMessage({ type: "ready" });
+    const version = await pyodide.runPythonAsync(`
+try:
+    import importlib.metadata
+    importlib.metadata.version('omnibenchmark')
+except Exception:
+    'unknown'
+`);
+    self.postMessage({ type: "ready", version: String(version) });
   } catch (e) {
     self.postMessage({ type: "result", ok: false, error: String(e) });
   }
