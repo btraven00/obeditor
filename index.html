@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OBEditor — OmniBenchmark Playground</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1e1e1e;
+    --surface: #252526;
+    --border: #3e3e42;
+    --accent: #0078d4;
+    --accent-dim: #004f8f;
+    --text: #cccccc;
+    --text-dim: #858585;
+    --error: #f44747;
+    --ok: #4ec9b0;
+    --header-h: 42px;
+    --status-h: 26px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    font-size: 13px;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  #header {
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    user-select: none;
+  }
+  #header .logo {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .5px;
+    color: #fff;
+  }
+  #header .logo span { color: var(--accent); }
+  #header .sep { flex: 1; }
+  #header .tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: var(--accent-dim);
+    color: #fff;
+  }
+  #pyodide-status {
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #pyodide-status .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background .3s;
+  }
+  #pyodide-status.ready .dot  { background: var(--ok); }
+  #pyodide-status.error .dot  { background: var(--error); }
+  #pyodide-status.loading .dot {
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .3; }
+  }
+
+  /* ── Pane labels ── */
+  #pane-bar {
+    height: 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+  }
+  .pane-label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    border-right: 1px solid var(--border);
+  }
+  .pane-label:last-child { border-right: none; }
+  .pane-label .badge {
+    margin-left: auto;
+    font-size: 10px;
+    background: var(--border);
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+
+  /* ── Editors container ── */
+  #editors {
+    display: flex;
+    height: calc(100vh - var(--header-h) - 28px - var(--status-h));
+  }
+  .editor-pane {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  #divider {
+    width: 4px;
+    background: var(--border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background .15s;
+  }
+  #divider:hover, #divider.dragging { background: var(--accent); }
+
+  /* overlay shown while pyodide loads */
+  #loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(30,30,30,.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    z-index: 10;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  #loading-overlay .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading-overlay.hidden { display: none; }
+
+  /* ── Status bar ── */
+  #status-bar {
+    height: var(--status-h);
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 12px;
+    color: #fff;
+    gap: 8px;
+  }
+  #status-bar.error  { background: var(--error); }
+  #status-bar.ok     { background: #16825d; }
+  #status-bar.idle   { background: var(--surface); color: var(--text-dim); border-top: 1px solid var(--border); }
+  #status-msg { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="logo">OB<span>Editor</span></div>
+  <div id="pyodide-status" class="loading">
+    <div class="dot"></div>
+    <span id="pyodide-label">Starting…</span>
+  </div>
+  <div class="sep"></div>
+  <div class="tag">OmniBenchmark Playground</div>
+</div>
+
+<div id="pane-bar">
+  <div class="pane-label">
+    benchmark.yaml
+    <span class="badge">YAML</span>
+  </div>
+  <div class="pane-label">
+    Snakefile <em style="font-style:normal;opacity:.5;margin-left:4px">preview</em>
+    <span class="badge">read-only</span>
+  </div>
+</div>
+
+<div id="editors">
+  <div class="editor-pane" id="yaml-pane">
+    <div id="yaml-editor" style="width:100%;height:100%;"></div>
+    <div id="loading-overlay">
+      <div class="spinner"></div>
+      <span id="overlay-msg">Initialising Pyodide…</span>
+    </div>
+  </div>
+  <div id="divider"></div>
+  <div class="editor-pane" id="snake-pane">
+    <div id="snake-editor" style="width:100%;height:100%;"></div>
+  </div>
+</div>
+
+<div id="status-bar" class="idle">
+  <span id="status-msg">Waiting for Pyodide…</span>
+</div>
+
+<!-- Monaco Editor (AMD loader) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.0/min/vs/loader.min.js"></script>
+<script>
+// ── Sample YAML ──────────────────────────────────────────────────────────────
+const SAMPLE_YAML = `\
+id: clustering_benchmark
+name: "Clustering Benchmark"
+description: "A benchmark for single-cell clustering methods"
+benchmarker: "A. Researcher <researcher@example.org>"
+version: "0.1.0"
+software_backend: "conda"
+
+software_environments:
+  py_env:
+    name: "Python environment"
+    conda: "envs/conda.yaml"
+  r_env:
+    name: "R environment"
+    conda: "envs/r.yaml"
+
+stages:
+  - id: datasets
+    outputs:
+      - id: data.matrix
+        path: "{dataset}.h5ad"
+      - id: data.labels
+        path: "{dataset}.labels.csv"
+    modules:
+      - id: pbmc3k
+        name: "PBMC 3k dataset"
+        software_environment: py_env
+        repository:
+          url: https://github.com/omnibenchmark-example/pbmc3k
+          commit: abc1234def5
+
+      - id: simulated
+        name: "Simulated dataset"
+        software_environment: py_env
+        repository:
+          url: https://github.com/omnibenchmark-example/simulated
+          commit: deadbeef01
+        parameters:
+          - n_cells: ["500", "2000"]
+            noise: ["low", "high"]
+
+  - id: methods
+    inputs:
+      - data.matrix
+    outputs:
+      - id: clustering.labels
+        path: "{dataset}_clusters.csv"
+    modules:
+      - id: leiden
+        name: "Leiden clustering"
+        software_environment: py_env
+        repository:
+          url: https://github.com/omnibenchmark-example/leiden
+          commit: 1a2b3c4d5e
+        parameters:
+          - resolution: ["0.5", "1.0", "2.0"]
+
+      - id: kmeans
+        name: "K-means clustering"
+        software_environment: py_env
+        repository:
+          url: https://github.com/omnibenchmark-example/kmeans
+          commit: 5e4d3c2b1a
+        parameters:
+          - k: ["5", "10", "20"]
+
+  - id: metrics
+    inputs:
+      - clustering.labels
+      - data.labels
+    outputs:
+      - id: metrics.ari
+        path: "{dataset}_ari.json"
+    resources:
+      cores: 2
+    modules:
+      - id: ari
+        name: "Adjusted Rand Index"
+        software_environment: r_env
+        repository:
+          url: https://github.com/omnibenchmark-example/ari
+          commit: f0e1d2c3b4
+`;
+
+// ── State ────────────────────────────────────────────────────────────────────
+let yamlEditor = null;
+let snakeEditor = null;
+let worker = null;
+let pyodideReady = false;
+let debounceTimer = null;
+
+// ── Monaco setup ─────────────────────────────────────────────────────────────
+require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.0/min/vs" } });
+
+require(["vs/editor/editor.main"], () => {
+  // YAML editor (left)
+  yamlEditor = monaco.editor.create(document.getElementById("yaml-editor"), {
+    value: SAMPLE_YAML,
+    language: "yaml",
+    theme: "vs-dark",
+    fontSize: 13,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    lineNumbers: "on",
+    wordWrap: "off",
+    automaticLayout: true,
+    tabSize: 2,
+  });
+
+  // Snakefile editor (right, read-only)
+  snakeEditor = monaco.editor.create(document.getElementById("snake-editor"), {
+    value: "# Waiting for Pyodide…",
+    language: "python",  // close enough for syntax highlighting
+    theme: "vs-dark",
+    fontSize: 13,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    lineNumbers: "on",
+    readOnly: true,
+    automaticLayout: true,
+    tabSize: 4,
+  });
+
+  yamlEditor.onDidChangeModelContent(() => scheduleConvert());
+
+  startWorker();
+});
+
+// ── Worker ───────────────────────────────────────────────────────────────────
+function startWorker() {
+  // Build the wheel URL relative to this page
+  const wheelUrl = new URL("omnibenchmark-0.4.0.post43-py3-none-any.whl", location.href).href;
+  worker = new Worker("worker.js");
+
+  worker.onmessage = ({ data }) => {
+    switch (data.type) {
+      case "status":
+        setOverlay(data.message);
+        setPyodideStatus("loading", data.message);
+        setStatus("idle", data.message);
+        break;
+      case "ready":
+        pyodideReady = true;
+        setOverlay(null);
+        setPyodideStatus("ready", "Ready");
+        setStatus("ok", "Pyodide ready — converting…");
+        scheduleConvert(0);
+        break;
+      case "result":
+        setOverlay(null);
+        if (data.ok) {
+          snakeEditor.setValue(data.snakefile);
+          setPyodideStatus("ready", "Ready");
+          setStatus("ok", "Snakefile updated");
+        } else {
+          // Always show errors in the right panel
+          const errText = data.error || "Unknown error";
+          snakeEditor.setValue(
+            "# Error\n#\n" +
+            errText.split("\n").map(l => "# " + l).join("\n") + "\n"
+          );
+          setPyodideStatus("error", "Error");
+          setStatus("error", errText.split("\n")[0]);
+        }
+        break;
+    }
+  };
+
+  worker.postMessage({ type: "init", wheelUrl });
+}
+
+// ── Conversion ───────────────────────────────────────────────────────────────
+function scheduleConvert(delay = 600) {
+  if (!pyodideReady) return;
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    const yaml = yamlEditor.getValue();
+    setStatus("idle", "Converting…");
+    worker.postMessage({ type: "convert", yaml });
+  }, delay);
+}
+
+// ── UI helpers ───────────────────────────────────────────────────────────────
+function setOverlay(msg) {
+  const el = document.getElementById("loading-overlay");
+  if (msg === null) {
+    el.classList.add("hidden");
+  } else {
+    el.classList.remove("hidden");
+    document.getElementById("overlay-msg").textContent = msg;
+  }
+}
+
+function setPyodideStatus(state, label) {
+  const el = document.getElementById("pyodide-status");
+  el.className = state;
+  document.getElementById("pyodide-label").textContent = label;
+}
+
+function setStatus(cls, msg) {
+  const bar = document.getElementById("status-bar");
+  bar.className = cls;
+  document.getElementById("status-msg").textContent = msg;
+}
+
+// ── Divider drag ─────────────────────────────────────────────────────────────
+(function setupDivider() {
+  const divider = document.getElementById("divider");
+  const editors = document.getElementById("editors");
+  const leftPane = document.getElementById("yaml-pane");
+  const rightPane = document.getElementById("snake-pane");
+  let dragging = false;
+  let startX, leftW, totalW;
+
+  divider.addEventListener("mousedown", e => {
+    dragging = true;
+    startX = e.clientX;
+    leftW = leftPane.getBoundingClientRect().width;
+    totalW = editors.getBoundingClientRect().width - divider.offsetWidth;
+    divider.classList.add("dragging");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  });
+
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const newLeft = Math.max(200, Math.min(totalW - 200, leftW + dx));
+    const pct = (newLeft / totalW) * 100;
+    leftPane.style.flex = "none";
+    leftPane.style.width = pct + "%";
+    rightPane.style.flex = "1";
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    divider.classList.remove("dragging");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    // trigger Monaco layout
+    if (yamlEditor) yamlEditor.layout();
+    if (snakeEditor) snakeEditor.layout();
+  });
+})();
+</script>
+</body>
+</html>
