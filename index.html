@@ -267,6 +267,17 @@
     justify-content: center;
   }
   #mermaid-container svg { max-width: 100%; height: auto; }
+
+  /* ── YAML error glyph ── */
+  .error-glyph {
+    width: 8px !important;
+    height: 8px !important;
+    border-radius: 50%;
+    background: var(--error);
+    margin-top: 5px;
+    margin-left: 3px;
+  }
+  .error-line-bg { background: rgba(244,71,71,.08); }
 </style>
 </head>
 <body>
@@ -432,6 +443,7 @@ let activeTab   = "check";       // "check" | "snakefile" | "runner"
 let worker      = null;
 let pyodideReady = false;
 let debounceTimer = null;
+let errorDecorations = null;
 
 // ── Monaco setup ─────────────────────────────────────────────────────────────
 require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.0/min/vs" } });
@@ -449,6 +461,7 @@ require(["vs/editor/editor.main"], () => {
     wordWrap: "off",
     automaticLayout: true,
     tabSize: 2,
+    glyphMargin: true,
   });
 
   // Right: one editor, two models
@@ -529,6 +542,7 @@ function startWorker() {
           runnerModel.setValue(data.runner || "");
           setPyodideStatus("ready", "Ready");
           setStatus("ok", "Snakefile + run.sh updated");
+          clearErrorLine();
         } else {
           const errText = data.error || "Unknown error";
           const commented = "# Error\n#\n" +
@@ -537,6 +551,7 @@ function startWorker() {
           runnerModel.setValue(commented);
           setPyodideStatus("error", "Error");
           setStatus("error", errText.split("\n")[0]);
+          markErrorLine(data.line);
         }
         renderCheck(data.ok, data.error, data.stats, data.mermaid);
         break;
@@ -572,6 +587,23 @@ function setPyodideStatus(state, label) {
   const el = document.getElementById("pyodide-status");
   el.className = state;
   document.getElementById("pyodide-label").textContent = label;
+}
+
+function markErrorLine(lineNumber) {
+  clearErrorLine();
+  if (!lineNumber || !yamlEditor) return;
+  errorDecorations = yamlEditor.createDecorationsCollection([{
+    range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+    options: {
+      glyphMarginClassName: "error-glyph",
+      isWholeLine: true,
+      className: "error-line-bg",
+    },
+  }]);
+}
+
+function clearErrorLine() {
+  if (errorDecorations) { errorDecorations.clear(); errorDecorations = null; }
 }
 
 function setStatus(cls, msg) {

@@ -323,8 +323,11 @@ const PREVIEW_PY = [
   "        return {'ok': True, 'snakefile': snakefile, 'runner': _generate_runner(bench), 'stats': json.dumps(stats), 'mermaid': mermaid}",
   "    except Exception as e:",
   "        import traceback",
+  "        line = None",
+  "        if hasattr(e, 'problem_mark') and e.problem_mark:",
+  "            line = e.problem_mark.line + 1",
   "        return {'ok': False, 'error': f'{type(e).__name__}: {e}',",
-  "                'traceback': traceback.format_exc()}",
+  "                'traceback': traceback.format_exc(), 'line': line}",
 ].join("\n");
 
 async function init(wheelUrl) {
@@ -408,7 +411,7 @@ async function convert(yaml) {
     const result = await pyodide.runPythonAsync("yaml_to_snakefile(_yaml_input)");
     const obj = result.toJs({ dict_converter: Object.fromEntries });
     result.destroy();
-    self.postMessage({ type: "result", ok: obj.ok, snakefile: obj.snakefile, runner: obj.runner, stats: obj.stats, mermaid: obj.mermaid, error: obj.error });
+    self.postMessage({ type: "result", ok: obj.ok, snakefile: obj.snakefile, runner: obj.runner, stats: obj.stats, mermaid: obj.mermaid, error: obj.error, line: obj.line });
   } catch (e) {
     self.postMessage({ type: "result", ok: false, error: e.message });
   }
