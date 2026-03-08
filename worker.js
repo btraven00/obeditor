@@ -389,9 +389,10 @@ from omnibenchmark.model.benchmark import Benchmark
     const version = await pyodide.runPythonAsync(`
 try:
     import importlib.metadata
-    importlib.metadata.version('omnibenchmark')
+    _ver = importlib.metadata.version('omnibenchmark')
 except Exception:
-    'unknown'
+    _ver = 'unknown'
+_ver
 `);
     self.postMessage({ type: "ready", version: String(version) });
   } catch (e) {
