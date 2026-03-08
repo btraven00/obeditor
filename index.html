@@ -421,7 +421,7 @@ require(["vs/editor/editor.main"], () => {
 // ── Worker ───────────────────────────────────────────────────────────────────
 function startWorker() {
   // Build the wheel URL relative to this page
-  const wheelUrl = new URL("omnibenchmark-0.4.0.post43-py3-none-any.whl", location.href).href;
+  const wheelUrl = new URL("omnibenchmark-0.4.0.post45-py3-none-any.whl", location.href).href;
   worker = new Worker("worker.js");
 
   worker.onmessage = ({ data }) => {
