@@ -8,7 +8,7 @@ let pyodide = null;
 // Each \n is a real JS escape → newline.  Each \\ is a literal backslash.
 // Python sees exactly what's written here.
 const PREVIEW_PY = [
-  "import io, warnings, re",
+  "import io, json, warnings, re",
   "from pathlib import PurePosixPath",
   "warnings.filterwarnings('ignore')",
   "",
@@ -180,7 +180,34 @@ const PREVIEW_PY = [
   "            out.write(f'        --{iid} $INPUT_{skey} \\\\\\n')",
   "        out.write('        {params.cli_args}\\n')",
   "        out.write('        \"\"\"\\n\\n')",
-  "    return out.getvalue()",
+  "    stats = {'total': len(all_nodes), 'stages': len(bench.stages), 'by_stage': {}}",
+  "    for _n in all_nodes:",
+  "        sid = _n['stage'].id",
+  "        stats['by_stage'][sid] = stats['by_stage'].get(sid, 0) + 1",
+  "    return out.getvalue(), stats",
+  "",
+  "def _generate_mermaid(bench):",
+  "    stage_outs = {}",
+  "    for stage in bench.stages:",
+  "        stage_outs[stage.id] = {o.id for o in (stage.outputs or [])}",
+  "    lines = ['flowchart LR']",
+  "    for stage in bench.stages:",
+  "        lines.append(f'    subgraph sg_{stage.id}[{stage.id}]')",
+  "        for module in stage.modules:",
+  "            nid = 'n_' + stage.id + '_' + module.id.replace('-','_').replace('.','_')",
+  "            lines.append(f'        {nid}[\"{module.id}\"]')",
+  "        lines.append('    end')",
+  "    added = set()",
+  "    for stage in bench.stages:",
+  "        input_ids = {e for ic in (stage.inputs or []) for e in ic.entries}",
+  "        for prev in bench.stages:",
+  "            if prev.id == stage.id: continue",
+  "            if input_ids & stage_outs.get(prev.id, set()):",
+  "                key = (prev.id, stage.id)",
+  "                if key not in added:",
+  "                    added.add(key)",
+  "                    lines.append(f'    sg_{prev.id} --> sg_{stage.id}')",
+  "    return '\\n'.join(lines)",
   "",
   "def _generate_runner(bench):",
   "    out = io.StringIO()",
@@ -291,7 +318,9 @@ const PREVIEW_PY = [
   "    try:",
   "        from omnibenchmark.model.benchmark import Benchmark",
   "        bench = Benchmark.from_yaml(yaml_content)",
-  "        return {'ok': True, 'snakefile': _generate(bench), 'runner': _generate_runner(bench)}",
+  "        snakefile, stats = _generate(bench)",
+  "        mermaid = _generate_mermaid(bench)",
+  "        return {'ok': True, 'snakefile': snakefile, 'runner': _generate_runner(bench), 'stats': json.dumps(stats), 'mermaid': mermaid}",
   "    except Exception as e:",
   "        import traceback",
   "        return {'ok': False, 'error': f'{type(e).__name__}: {e}',",
@@ -371,7 +400,7 @@ async function convert(yaml) {
     const result = await pyodide.runPythonAsync("yaml_to_snakefile(_yaml_input)");
     const obj = result.toJs({ dict_converter: Object.fromEntries });
     result.destroy();
-    self.postMessage({ type: "result", ok: obj.ok, snakefile: obj.snakefile, runner: obj.runner, error: obj.error });
+    self.postMessage({ type: "result", ok: obj.ok, snakefile: obj.snakefile, runner: obj.runner, stats: obj.stats, mermaid: obj.mermaid, error: obj.error });
   } catch (e) {
     self.postMessage({ type: "result", ok: false, error: e.message });
   }

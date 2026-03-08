@@ -212,6 +212,61 @@
   #status-bar.ok     { background: #16825d; }
   #status-bar.idle   { background: var(--surface); color: var(--text-dim); border-top: 1px solid var(--border); }
   #status-msg { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ── Check pane ── */
+  #check-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px;
+    overflow-y: auto;
+    height: 100%;
+  }
+  #check-pane.hidden { display: none; }
+  .check-badge {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,.03);
+  }
+  .check-badge.ok    { background: rgba(78,201,176,.12); border-color: var(--ok);    color: var(--ok); }
+  .check-badge.error { background: rgba(244,71,71,.10);  border-color: var(--error); color: var(--error); }
+  .check-badge .check-icon { font-size: 20px; line-height: 1; }
+  .check-section h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+  .stats-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+  .stat-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 10px 16px;
+    min-width: 80px;
+    text-align: center;
+  }
+  .stat-chip .val { font-size: 24px; font-weight: 700; color: var(--text); line-height: 1.2; }
+  .stat-chip .lbl { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+  #mermaid-container {
+    background: #2a2a2a;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 16px;
+    overflow: auto;
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #mermaid-container svg { max-width: 100%; height: auto; }
 </style>
 </head>
 <body>
@@ -232,13 +287,16 @@
     <span class="badge">YAML</span>
   </div>
   <div id="right-tabs">
-    <button class="tab-btn active" data-tab="snakefile">
+    <button class="tab-btn active" data-tab="check">
+      Check <span class="tab-badge" id="check-tab-badge">—</span>
+    </button>
+    <button class="tab-btn" data-tab="snakefile">
       Snakefile <span class="tab-badge">preview</span>
     </button>
     <button class="tab-btn" data-tab="runner">
       run.sh <span class="tab-badge">bash</span>
     </button>
-    <button id="tab-copy" title="Copy to clipboard">Copy</button>
+    <button id="tab-copy" title="Copy to clipboard" style="display:none">Copy</button>
   </div>
 </div>
 
@@ -252,7 +310,21 @@
   </div>
   <div id="divider"></div>
   <div class="editor-pane" id="snake-pane">
-    <div id="snake-editor" style="width:100%;height:100%;"></div>
+    <div id="check-pane">
+      <div id="check-badge" class="check-badge">
+        <span class="check-icon" id="check-icon">···</span>
+        <span id="check-msg">Waiting for Pyodide…</span>
+      </div>
+      <div class="check-section" id="stats-section" style="display:none">
+        <h3>Rule Summary</h3>
+        <div class="stats-grid" id="stats-grid"></div>
+      </div>
+      <div class="check-section" id="mermaid-section" style="display:none">
+        <h3>Pipeline Topology</h3>
+        <div id="mermaid-container"></div>
+      </div>
+    </div>
+    <div id="snake-editor" style="width:100%;height:100%;display:none;"></div>
   </div>
 </div>
 
@@ -260,6 +332,8 @@
   <span id="status-msg">Waiting for Pyodide…</span>
 </div>
 
+<!-- Mermaid (diagram rendering) -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <!-- Monaco Editor (AMD loader) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.0/min/vs/loader.min.js"></script>
 <script>
@@ -353,7 +427,7 @@ let yamlEditor  = null;
 let rightEditor = null;          // single editor, two models
 let snakeModel  = null;
 let runnerModel = null;
-let activeTab   = "snakefile";   // "snakefile" | "runner"
+let activeTab   = "check";       // "check" | "snakefile" | "runner"
 let worker      = null;
 let pyodideReady = false;
 let debounceTimer = null;
@@ -400,8 +474,14 @@ require(["vs/editor/editor.main"], () => {
       activeTab = btn.dataset.tab;
       document.querySelectorAll(".tab-btn[data-tab]").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      rightEditor.setModel(activeTab === "snakefile" ? snakeModel : runnerModel);
-      rightEditor.layout();
+      const isCheck = activeTab === "check";
+      document.getElementById("check-pane").classList.toggle("hidden", !isCheck);
+      document.getElementById("snake-editor").style.display = isCheck ? "none" : "";
+      document.getElementById("tab-copy").style.display = isCheck ? "none" : "";
+      if (!isCheck) {
+        rightEditor.setModel(activeTab === "snakefile" ? snakeModel : runnerModel);
+        rightEditor.layout();
+      }
     });
   });
 
@@ -454,6 +534,7 @@ function startWorker() {
           setPyodideStatus("error", "Error");
           setStatus("error", errText.split("\n")[0]);
         }
+        renderCheck(data.ok, data.error, data.stats, data.mermaid);
         break;
     }
   };
@@ -493,6 +574,68 @@ function setStatus(cls, msg) {
   const bar = document.getElementById("status-bar");
   bar.className = cls;
   document.getElementById("status-msg").textContent = msg;
+}
+
+// ── Mermaid setup ────────────────────────────────────────────────────────────
+mermaid.initialize({ startOnLoad: false, theme: "dark" });
+let _mermaidCounter = 0;
+
+async function renderMermaid(source) {
+  const container = document.getElementById("mermaid-container");
+  container.innerHTML = "";
+  try {
+    const id = "mermaid-" + (++_mermaidCounter);
+    const { svg } = await mermaid.render(id, source);
+    container.innerHTML = svg;
+  } catch (e) {
+    container.textContent = "Diagram error: " + e.message;
+  }
+}
+
+function renderStats(statsJson) {
+  if (!statsJson) return;
+  const stats = JSON.parse(statsJson);
+  const grid = document.getElementById("stats-grid");
+  grid.innerHTML = "";
+  const addChip = (val, lbl) => {
+    const chip = document.createElement("div");
+    chip.className = "stat-chip";
+    chip.innerHTML = `<div class="val">${val}</div><div class="lbl">${lbl}</div>`;
+    grid.appendChild(chip);
+  };
+  addChip(stats.stages, "stages");
+  addChip(stats.total, "total rules");
+  for (const [sid, cnt] of Object.entries(stats.by_stage || {})) {
+    addChip(cnt, sid);
+  }
+  document.getElementById("stats-section").style.display = "";
+}
+
+function renderCheck(ok, errMsg, statsJson, mermaidSrc) {
+  const badge = document.getElementById("check-badge");
+  const icon  = document.getElementById("check-icon");
+  const msg   = document.getElementById("check-msg");
+  const tabBadge = document.getElementById("check-tab-badge");
+  if (ok) {
+    badge.className = "check-badge ok";
+    icon.textContent  = "✓";
+    msg.textContent   = "Validation passed";
+    tabBadge.textContent = "OK";
+    tabBadge.style.background = "rgba(78,201,176,.3)";
+    tabBadge.style.color = "var(--ok)";
+  } else {
+    badge.className = "check-badge error";
+    icon.textContent  = "✗";
+    msg.textContent   = (errMsg || "Validation failed").split("\n")[0];
+    tabBadge.textContent = "ERR";
+    tabBadge.style.background = "rgba(244,71,71,.3)";
+    tabBadge.style.color = "var(--error)";
+  }
+  if (ok && statsJson) renderStats(statsJson);
+  if (ok && mermaidSrc) {
+    document.getElementById("mermaid-section").style.display = "";
+    renderMermaid(mermaidSrc);
+  }
 }
 
 // ── Divider drag ─────────────────────────────────────────────────────────────
