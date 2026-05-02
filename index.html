@@ -56,6 +56,24 @@
     background: var(--accent-dim);
     color: #fff;
   }
+  #version-select {
+    font-family: inherit;
+    font-size: 11px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 3px 6px;
+    cursor: pointer;
+  }
+  #version-select:hover { border-color: var(--accent); }
+  #version-select:disabled { opacity: .5; cursor: wait; }
+  #version-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: .8px;
+  }
   #pyodide-status {
     font-size: 12px;
     color: var(--text-dim);
@@ -289,6 +307,10 @@
     <span id="pyodide-label">Starting…</span>
   </div>
   <div class="sep"></div>
+  <span id="version-label">version</span>
+  <select id="version-select" disabled>
+    <option>loading…</option>
+  </select>
   <div class="tag">OmniBenchmark Playground</div>
 </div>
 
@@ -344,6 +366,8 @@
   <span id="ob-version" style="margin-left:auto;font-size:11px;opacity:.7;"></span>
 </div>
 
+<!-- js-yaml (parses releases.yaml catalog) -->
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
 <!-- Mermaid (diagram rendering) -->
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <!-- Monaco Editor (AMD loader) -->
@@ -444,6 +468,8 @@ let worker      = null;
 let pyodideReady = false;
 let debounceTimer = null;
 let errorDecorations = null;
+let releaseCatalog = null;       // { default, releases: [{version,label,url,hidden}] }
+let currentWheelUrl = null;
 
 // ── Monaco setup ─────────────────────────────────────────────────────────────
 require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.0/min/vs" } });
@@ -509,13 +535,59 @@ require(["vs/editor/editor.main"], () => {
     });
   });
 
-  startWorker();
+  loadCatalogAndStart();
 });
 
+// ── Release catalog ──────────────────────────────────────────────────────────
+async function loadCatalogAndStart() {
+  const sel = document.getElementById("version-select");
+  try {
+    const resp = await fetch("releases.yaml", { cache: "no-cache" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
+    releaseCatalog = jsyaml.load(text);
+  } catch (e) {
+    setStatus("error", "Could not load releases.yaml: " + e.message);
+    setOverlay("Catalog load failed: " + e.message);
+    return;
+  }
+
+  const visible = (releaseCatalog.releases || []).filter(r => !r.hidden);
+  if (!visible.length) {
+    setStatus("error", "releases.yaml has no visible entries");
+    setOverlay("No releases available");
+    return;
+  }
+  sel.innerHTML = "";
+  for (const r of visible) {
+    const opt = document.createElement("option");
+    opt.value = r.version;
+    opt.textContent = r.label || r.version;
+    opt.dataset.url = new URL(r.url, location.href).href;
+    sel.appendChild(opt);
+  }
+  const def = releaseCatalog.default;
+  if (def && visible.some(r => r.version === def)) sel.value = def;
+
+  sel.addEventListener("change", () => {
+    const url = sel.selectedOptions[0]?.dataset.url;
+    if (url) startWorker(url);
+  });
+
+  startWorker(sel.selectedOptions[0].dataset.url);
+}
+
 // ── Worker ───────────────────────────────────────────────────────────────────
-function startWorker() {
-  // Build the wheel URL relative to this page
-  const wheelUrl = new URL("omnibenchmark-0.4.0.post45-py3-none-any.whl", location.href).href;
+function startWorker(wheelUrl) {
+  if (worker) {
+    try { worker.terminate(); } catch (_) {}
+    worker = null;
+  }
+  pyodideReady = false;
+  currentWheelUrl = wheelUrl;
+  document.getElementById("version-select").disabled = true;
+  setOverlay("Initialising Pyodide…");
+  setPyodideStatus("loading", "Starting…");
   worker = new Worker("worker.js");
 
   worker.onmessage = ({ data }) => {
@@ -533,6 +605,7 @@ function startWorker() {
         if (data.version) {
           document.getElementById("ob-version").textContent = "omnibenchmark v" + data.version;
         }
+        document.getElementById("version-select").disabled = false;
         scheduleConvert(0);
         break;
       case "result":
@@ -553,6 +626,7 @@ function startWorker() {
           setStatus("error", errText.split("\n")[0]);
           markErrorLine(data.line);
         }
+        document.getElementById("version-select").disabled = false;
         renderCheck(data.ok, data.error, data.stats, data.mermaid);
         break;
     }

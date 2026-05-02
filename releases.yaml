@@ -1,0 +1,19 @@
+# Catalog of omnibenchmark releases available in OBEditor.
+#
+# - `default` selects the version loaded on first page open.
+# - Entries are listed in dropdown order (top = first).
+# - Set `hidden: true` to phase a release out of the dropdown without
+#   deleting its entry (useful while you decide whether to bring it back).
+# - PyPI URLs (files.pythonhosted.org) are CORS-friendly, so the worker
+#   can fetch them directly. Use a relative path for a local/dev wheel.
+
+default: "0.5.0"
+
+releases:
+  - version: "0.5.0"
+    label: "0.5.0 (latest)"
+    url: "https://files.pythonhosted.org/packages/62/93/29c3caf8e3b5ad9522006dae841382ac2fd1c7e2f06235154d70c22ac4c7/omnibenchmark-0.5.0-py3-none-any.whl"
+
+  - version: "0.4.0.post45"
+    label: "0.4.0.post45 (pre-release wheel)"
+    url: "./omnibenchmark-0.4.0.post45-py3-none-any.whl"
