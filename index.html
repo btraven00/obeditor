@@ -286,6 +286,137 @@
   }
   #mermaid-container svg { max-width: 100%; height: auto; }
 
+  /* ── Header buttons ── */
+  .hdr-btn {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 4px 10px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .hdr-btn:hover { border-color: var(--accent); color: #fff; }
+  #source-pill {
+    font-size: 11px;
+    color: var(--text-dim);
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: none;
+  }
+  #source-pill code {
+    color: var(--text);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  #source-pill .clear {
+    margin-left: 6px;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  #source-pill .clear:hover { color: var(--error); }
+
+  /* ── Modal ── */
+  #modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  #modal-backdrop.show { display: flex; }
+  #modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 520px;
+    max-width: 92vw;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  }
+  #modal h2 {
+    font-size: 14px;
+    color: #fff;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  #modal .body {
+    padding: 16px 18px;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  #modal .body input {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 8px 10px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  #modal .body input:focus { outline: none; border-color: var(--accent); }
+  #modal .hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+  #modal .err {
+    font-size: 12px;
+    color: var(--error);
+    margin-top: 8px;
+    min-height: 16px;
+  }
+  #modal .footer {
+    padding: 12px 18px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  #modal .footer button {
+    font-family: inherit;
+    font-size: 12px;
+    padding: 6px 14px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  #modal .footer button:hover:not(:disabled) { border-color: var(--accent); color: #fff; }
+  #modal .footer button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #modal .footer button.primary:hover:not(:disabled) { background: #1a8ae0; }
+  #modal .footer button:disabled { opacity: .5; cursor: not-allowed; }
+  #modal kbd {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+  .trust-banner {
+    background: rgba(244,71,71,.08);
+    border: 1px solid var(--error);
+    border-radius: 4px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .trust-banner strong { color: var(--error); }
+  .trust-banner code { font-family: ui-monospace, monospace; color: var(--text); }
+
   /* ── Filter pane ── */
   #filter-pane {
     display: flex;
@@ -449,6 +580,11 @@
 
 <div id="header">
   <div class="logo">OB<span>Editor</span></div>
+  <button id="load-url-btn" class="hdr-btn" title="Load benchmark from a GitHub URL">Load from URL…</button>
+  <div id="source-pill">
+    from <code id="source-url-text"></code>
+    <span class="clear" id="source-clear" title="Forget source URL">✕</span>
+  </div>
   <div id="pyodide-status" class="loading">
     <div class="dot"></div>
     <span id="pyodide-label">Starting…</span>
@@ -528,6 +664,10 @@
 <div id="status-bar" class="idle">
   <span id="status-msg">Waiting for Pyodide…</span>
   <span id="ob-version" style="margin-left:auto;font-size:11px;opacity:.7;"></span>
+</div>
+
+<div id="modal-backdrop" role="dialog" aria-modal="true">
+  <div id="modal"></div>
 </div>
 
 <!-- js-yaml (parses releases.yaml catalog) -->
@@ -643,6 +783,10 @@ let wizardParentHash = null;
 let wizardParentUrl  = null;
 let wizardLastResult = null;     // { filtered_yaml, blob_json, blob_packed, parent_hash, parent_url }
 
+// ── Source-URL / trust state ─────────────────────────────────────────────────
+const DEFAULT_TRUSTED_ORGS = ["omnibenchmark", "omni-scrna"];
+let loadedSourceUrl = null;      // raw URL the current YAML was fetched from
+
 // ── Monaco setup ─────────────────────────────────────────────────────────────
 require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.0/min/vs" } });
 
@@ -726,8 +870,174 @@ require(["vs/editor/editor.main"], () => {
     });
   });
 
+  // Load-from-URL button + source pill clear
+  document.getElementById("load-url-btn").addEventListener("click", openLoadUrlModal);
+  document.getElementById("source-clear").addEventListener("click", () => setSourceUrl(null));
+
   loadCatalogAndStart();
 });
+
+// ── GitHub URL handling + trust ──────────────────────────────────────────────
+function parseGitHubUrl(input) {
+  let u;
+  try { u = new URL(input.trim()); } catch (_) { return null; }
+  const parts = u.pathname.split("/").filter(Boolean);
+  if (u.hostname === "raw.githubusercontent.com") {
+    if (parts.length < 4) return null;
+    const [org, repo, ref, ...path] = parts;
+    return { org, repo, ref, path: path.join("/"), rawUrl: u.href, displayUrl: u.href };
+  }
+  if (u.hostname === "github.com") {
+    if (parts.length < 5 || parts[2] !== "blob") return null;
+    const [org, repo, , ref, ...path] = parts;
+    const raw = `https://raw.githubusercontent.com/${org}/${repo}/${ref}/${path.join("/")}`;
+    return { org, repo, ref, path: path.join("/"), rawUrl: raw, displayUrl: u.href };
+  }
+  return null;
+}
+
+function getStoredTrustedOrgs() {
+  try { return JSON.parse(localStorage.getItem("obeditor.trustedOrgs") || "[]"); }
+  catch (_) { return []; }
+}
+function isOrgTrusted(org) {
+  const lc = org.toLowerCase();
+  return DEFAULT_TRUSTED_ORGS.some(o => o.toLowerCase() === lc) ||
+         getStoredTrustedOrgs().some(o => o.toLowerCase() === lc);
+}
+function trustOrgPersistent(org) {
+  const stored = getStoredTrustedOrgs();
+  if (!stored.some(o => o.toLowerCase() === org.toLowerCase())) {
+    stored.push(org);
+    localStorage.setItem("obeditor.trustedOrgs", JSON.stringify(stored));
+  }
+}
+
+// ── Modal helpers ────────────────────────────────────────────────────────────
+function openModal(html) {
+  const m = document.getElementById("modal");
+  m.innerHTML = html;
+  document.getElementById("modal-backdrop").classList.add("show");
+}
+function closeModal() {
+  document.getElementById("modal-backdrop").classList.remove("show");
+  document.getElementById("modal").innerHTML = "";
+}
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && document.getElementById("modal-backdrop").classList.contains("show")) closeModal();
+});
+// Click backdrop (not modal body) to close
+document.addEventListener("click", e => {
+  if (e.target.id === "modal-backdrop") closeModal();
+});
+
+function openLoadUrlModal() {
+  openModal(`
+    <h2>Load benchmark from GitHub</h2>
+    <div class="body">
+      <label>Paste a GitHub URL to a <code>benchmark.yaml</code>:</label>
+      <input id="modal-url" type="url" autocomplete="off" spellcheck="false"
+             placeholder="https://github.com/&lt;org&gt;/&lt;repo&gt;/blob/&lt;ref&gt;/benchmark.yaml" />
+      <div class="hint">
+        Accepts <code>github.com/&hellip;/blob/&hellip;</code> or <code>raw.githubusercontent.com/&hellip;</code>.
+        Trusted by default: <code>omnibenchmark</code>, <code>omni-scrna</code>.
+      </div>
+      <div class="err" id="modal-err"></div>
+    </div>
+    <div class="footer">
+      <button id="modal-cancel">Cancel</button>
+      <button id="modal-load" class="primary">Load</button>
+    </div>
+  `);
+  const input = document.getElementById("modal-url");
+  input.focus();
+  input.addEventListener("keydown", e => { if (e.key === "Enter") attemptLoad(); });
+  document.getElementById("modal-cancel").onclick = closeModal;
+  document.getElementById("modal-load").onclick = attemptLoad;
+}
+
+function attemptLoad() {
+  const errEl = document.getElementById("modal-err");
+  errEl.textContent = "";
+  const raw = document.getElementById("modal-url").value;
+  const parsed = parseGitHubUrl(raw);
+  if (!parsed) {
+    errEl.textContent = "Not a recognized GitHub URL. Use github.com/.../blob/... or raw.githubusercontent.com/...";
+    return;
+  }
+  if (isOrgTrusted(parsed.org)) {
+    fetchAndLoad(parsed);
+  } else {
+    showTrustPrompt(parsed);
+  }
+}
+
+function showTrustPrompt(parsed) {
+  openModal(`
+    <h2>Trust this organization?</h2>
+    <div class="body">
+      <div class="trust-banner">
+        Organization <code>${escapeHtml(parsed.org)}</code> is <strong>not trusted</strong>.
+      </div>
+      <p>You're about to load a benchmark from:</p>
+      <p><code style="font-family:ui-monospace,monospace;font-size:12px;word-break:break-all;">${escapeHtml(parsed.rawUrl)}</code></p>
+      <div class="hint">
+        Loading replaces the YAML in the editor. Nothing is executed — but check the contents before running anything downstream.
+        <strong>Trust always</strong> remembers <code>${escapeHtml(parsed.org)}</code> in this browser.
+      </div>
+    </div>
+    <div class="footer">
+      <button id="trust-cancel">Cancel</button>
+      <button id="trust-once">Trust once</button>
+      <button id="trust-always" class="primary">Trust always</button>
+    </div>
+  `);
+  document.getElementById("trust-cancel").onclick = closeModal;
+  document.getElementById("trust-once").onclick   = () => fetchAndLoad(parsed);
+  document.getElementById("trust-always").onclick = () => {
+    trustOrgPersistent(parsed.org);
+    fetchAndLoad(parsed);
+  };
+}
+
+async function fetchAndLoad(parsed) {
+  // Show fetching state in the modal.
+  openModal(`
+    <h2>Loading…</h2>
+    <div class="body">
+      <p>Fetching <code style="font-family:ui-monospace,monospace;font-size:12px;word-break:break-all;">${escapeHtml(parsed.rawUrl)}</code></p>
+      <div class="err" id="modal-err"></div>
+    </div>
+    <div class="footer"><button id="fetch-cancel">Cancel</button></div>
+  `);
+  let aborted = false;
+  document.getElementById("fetch-cancel").onclick = () => { aborted = true; closeModal(); };
+  try {
+    const resp = await fetch(parsed.rawUrl, { cache: "no-cache" });
+    if (aborted) return;
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+    const text = await resp.text();
+    if (aborted) return;
+    yamlEditor.setValue(text);
+    setSourceUrl(parsed.rawUrl);
+    closeModal();
+    setStatus("ok", `Loaded from ${parsed.org}/${parsed.repo}`);
+  } catch (e) {
+    const errEl = document.getElementById("modal-err");
+    if (errEl) errEl.textContent = "Fetch failed: " + e.message;
+  }
+}
+
+function setSourceUrl(url) {
+  loadedSourceUrl = url;
+  const pill = document.getElementById("source-pill");
+  if (url) {
+    document.getElementById("source-url-text").textContent = url;
+    pill.style.display = "";
+  } else {
+    pill.style.display = "none";
+  }
+}
 
 // ── Release catalog ──────────────────────────────────────────────────────────
 async function loadCatalogAndStart() {
@@ -780,7 +1090,7 @@ function startWorker(wheelUrl) {
   setOverlay("Initialising Pyodide…");
   setPyodideStatus("loading", "Starting…");
   // Cache-bust: worker.js evolves with index.html; keep them aligned.
-  worker = new Worker("worker.js?v=3");
+  worker = new Worker("worker.js?v=4");
 
   worker.onmessage = ({ data }) => {
     switch (data.type) {
@@ -1088,6 +1398,7 @@ function renderWizard() {
           ${stagesKept} stage${stagesKept===1?"":"s"} · ${totalKept} module${totalKept===1?"":"s"} kept ·
           subset-of <code>sha256:${escapeHtml(shortHash)}…</code>
           ${r.parent_url ? '· canonical-url <code>' + escapeHtml(r.parent_url) + '</code>' : ''}
+          ${loadedSourceUrl ? '· derived-from <code>' + escapeHtml(loadedSourceUrl) + '</code>' : ''}
         </div>
       </div>
       <div class="result-section">
@@ -1140,7 +1451,7 @@ function runFilter() {
     picks[sid] = [...set];
   }
   document.getElementById("filter-status").textContent = "Generating…";
-  worker.postMessage({ type: "filter", yaml, picks });
+  worker.postMessage({ type: "filter", yaml, picks, derivedFrom: loadedSourceUrl });
 }
 
 function download(filename, content, mime) {

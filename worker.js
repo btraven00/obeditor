@@ -356,7 +356,7 @@ const PREVIEW_PY = [
   "        return {'ok': False, 'error': f'{type(e).__name__}: {e}',",
   "                'traceback': traceback.format_exc(), 'line': line}",
   "",
-  "def filter_benchmark(yaml_content, picks_json):",
+  "def filter_benchmark(yaml_content, picks_json, derived_from=None):",
   "    try:",
   "        picks = json.loads(picks_json)",
   "        raw = _yaml.safe_load(yaml_content)",
@@ -378,12 +378,14 @@ const PREVIEW_PY = [
   "            new_stages.append(new_st)",
   "        out = dict(raw)",
   "        out.pop('canonical-url', None); out.pop('canonical_url', None)",
+  "        out.pop('derived-from', None); out.pop('derived_from', None)",
   "        subset = {'sha256': parent_hash}",
   "        if parent_url: subset['url'] = parent_url",
   "        out['subset-of'] = subset",
+  "        if derived_from: out['derived-from'] = derived_from",
   "        out['stages'] = new_stages",
   "        # Reorder header keys for readability.",
-  "        head_keys = ['id', 'name', 'description', 'benchmarker', 'version', 'subset-of']",
+  "        head_keys = ['id', 'name', 'description', 'benchmarker', 'version', 'subset-of', 'derived-from']",
   "        ordered = {}",
   "        for k in head_keys:",
   "            if k in out: ordered[k] = out.pop(k)",
@@ -391,6 +393,7 @@ const PREVIEW_PY = [
   "        filtered_yaml = _yaml.safe_dump(ordered, sort_keys=False, default_flow_style=False, width=120)",
   "        blob = {'v': 1, 'parent': {'sha256': parent_hash}, 'picks': picks}",
   "        if parent_url: blob['parent']['url'] = parent_url",
+  "        if derived_from: blob['parent']['derived_from'] = derived_from",
   "        blob_json = json.dumps(blob, separators=(',', ':'), sort_keys=True)",
   "        packed = base64.urlsafe_b64encode(",
   "            gzip.compress(blob_json.encode('utf-8'), compresslevel=9, mtime=0)",
@@ -491,12 +494,13 @@ async function convert(yaml) {
   }
 }
 
-async function filterCmd({ yaml, picks }) {
+async function filterCmd({ yaml, picks, derivedFrom }) {
   if (!pyodide) return;
   try {
     pyodide.globals.set("_yaml_input", yaml);
     pyodide.globals.set("_picks_json", JSON.stringify(picks));
-    const result = await pyodide.runPythonAsync("filter_benchmark(_yaml_input, _picks_json)");
+    pyodide.globals.set("_derived_from", derivedFrom || null);
+    const result = await pyodide.runPythonAsync("filter_benchmark(_yaml_input, _picks_json, _derived_from)");
     const obj = result.toJs({ dict_converter: Object.fromEntries });
     result.destroy();
     self.postMessage({ type: "filtered", ok: obj.ok, filtered_yaml: obj.filtered_yaml, blob_json: obj.blob_json, blob_packed: obj.blob_packed, parent_hash: obj.parent_hash, parent_url: obj.parent_url, error: obj.error });
