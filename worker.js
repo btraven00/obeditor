@@ -203,12 +203,24 @@ const PREVIEW_PY = [
   "        input_ids = {e for ic in (stage.inputs or []) for e in ic.entries}",
   "        for prev in bench.stages:",
   "            if prev.id == stage.id: continue",
-  "            if input_ids & stage_outs.get(prev.id, set()):",
+  "            shared = sorted(input_ids & stage_outs.get(prev.id, set()))",
+  "            if shared:",
   "                key = (prev.id, stage.id)",
   "                if key not in added:",
   "                    added.add(key)",
-  "                    lines.append(f'    sg_{prev.id} --> sg_{stage.id}')",
+  "                    label = ', '.join(shared)",
+  "                    lines.append(f'    sg_{prev.id} -->|\"{label}\"| sg_{stage.id}')",
   "    return '\\n'.join(lines)",
+  "",
+  "def _generate_io_summary(bench):",
+  "    stage_outs = {}",
+  "    for stage in bench.stages:",
+  "        stage_outs[stage.id] = [o.id for o in (stage.outputs or [])]",
+  "    rows = []",
+  "    for stage in bench.stages:",
+  "        input_ids = sorted({e for ic in (stage.inputs or []) for e in ic.entries})",
+  "        rows.append({'stage': stage.id, 'inputs': input_ids, 'outputs': sorted(stage_outs[stage.id])})",
+  "    return json.dumps(rows)",
   "",
   "def _generate_runner(bench):",
   "    out = io.StringIO()",
@@ -353,12 +365,13 @@ const PREVIEW_PY = [
   "        bench = Benchmark.from_yaml(yaml_content)",
   "        snakefile, stats = _generate(bench)",
   "        mermaid = _generate_mermaid(bench)",
+  "        io_summary = _generate_io_summary(bench)",
   "        raw = _yaml.safe_load(yaml_content)",
   "        canonical_url = None",
   "        if isinstance(raw, dict):",
   "            canonical_url = raw.get('canonical-url') or raw.get('canonical_url')",
   "        return {'ok': True, 'snakefile': snakefile, 'runner': _generate_runner(bench),",
-  "                'stats': json.dumps(stats), 'mermaid': mermaid,",
+  "                'stats': json.dumps(stats), 'mermaid': mermaid, 'io_summary': io_summary,",
   "                'wizard': json.dumps(_wizard(bench)),",
   "                'parent_hash': _parent_hash(yaml_content),",
   "                'parent_url': canonical_url}",
@@ -537,7 +550,7 @@ async function convert(yaml) {
     const result = await pyodide.runPythonAsync("yaml_to_snakefile(_yaml_input)");
     const obj = result.toJs({ dict_converter: Object.fromEntries });
     result.destroy();
-    self.postMessage({ type: "result", ok: obj.ok, snakefile: obj.snakefile, runner: obj.runner, stats: obj.stats, mermaid: obj.mermaid, error: obj.error, line: obj.line, wizard: obj.wizard, parent_hash: obj.parent_hash, parent_url: obj.parent_url });
+    self.postMessage({ type: "result", ok: obj.ok, snakefile: obj.snakefile, runner: obj.runner, stats: obj.stats, mermaid: obj.mermaid, io_summary: obj.io_summary, error: obj.error, line: obj.line, wizard: obj.wizard, parent_hash: obj.parent_hash, parent_url: obj.parent_url });
   } catch (e) {
     self.postMessage({ type: "result", ok: false, error: e.message });
   }

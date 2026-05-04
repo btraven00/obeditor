@@ -308,6 +308,12 @@
     justify-content: center;
   }
   #mermaid-container svg { max-width: 100%; height: auto; }
+  .io-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .io-table th, .io-table td { padding: 6px 10px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+  .io-table th { background: var(--surface); color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; font-size: 10px; }
+  .io-table td:first-child { font-weight: 600; color: var(--text); white-space: nowrap; }
+  .io-table td:not(:first-child) { color: var(--text-dim); font-family: monospace; }
+  .io-table .none { color: var(--border); font-style: italic; font-family: inherit; }
 
   /* ── Header buttons ── */
   .hdr-btn {
@@ -745,6 +751,13 @@
       <div class="check-section" id="mermaid-section" style="display:none">
         <h3>Pipeline Topology</h3>
         <div id="mermaid-container"></div>
+      </div>
+      <div class="check-section" id="io-section" style="display:none">
+        <h3>Stage I/O Summary</h3>
+        <table id="io-table" class="io-table">
+          <thead><tr><th>Stage</th><th>Inputs consumed</th><th>Outputs produced</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
     <div id="filter-pane" class="hidden">
@@ -1251,7 +1264,7 @@ function startWorker(wheelUrl) {
   setOverlay("Initialising Pyodide…");
   setPyodideStatus("loading", "Starting…");
   // Cache-bust: worker.js evolves with index.html; keep them aligned.
-  worker = new Worker("worker.js?v=5");
+  worker = new Worker("worker.js?v=6");
 
   worker.onmessage = ({ data }) => {
     switch (data.type) {
@@ -1292,7 +1305,7 @@ function startWorker(wheelUrl) {
           updateWizardData(null, null, null);
         }
         document.getElementById("version-select").disabled = false;
-        renderCheck(data.ok, data.error, data.stats, data.mermaid);
+        renderCheck(data.ok, data.error, data.stats, data.mermaid, data.io_summary);
         break;
       case "filtered":
         if (data.ok) {
@@ -1397,7 +1410,7 @@ function renderStats(statsJson) {
   document.getElementById("stats-section").style.display = "";
 }
 
-function renderCheck(ok, errMsg, statsJson, mermaidSrc) {
+function renderCheck(ok, errMsg, statsJson, mermaidSrc, ioSummaryJson) {
   const badge = document.getElementById("check-badge");
   const icon  = document.getElementById("check-icon");
   const msg   = document.getElementById("check-msg");
@@ -1422,6 +1435,21 @@ function renderCheck(ok, errMsg, statsJson, mermaidSrc) {
     document.getElementById("mermaid-section").style.display = "";
     renderMermaid(mermaidSrc);
   }
+  if (ok && ioSummaryJson) renderIoSummary(ioSummaryJson);
+}
+
+function renderIoSummary(ioSummaryJson) {
+  const rows = JSON.parse(ioSummaryJson);
+  const tbody = document.querySelector("#io-table tbody");
+  tbody.innerHTML = "";
+  for (const row of rows) {
+    const ins  = row.inputs.length  ? row.inputs.join(", ")  : '<span class="none">—</span>';
+    const outs = row.outputs.length ? row.outputs.join(", ") : '<span class="none">—</span>';
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${row.stage}</td><td>${ins}</td><td>${outs}</td>`;
+    tbody.appendChild(tr);
+  }
+  document.getElementById("io-section").style.display = "";
 }
 
 // ── Filter wizard ────────────────────────────────────────────────────────────
