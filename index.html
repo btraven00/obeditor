@@ -333,6 +333,97 @@
   .io-table td:not(:first-child) { color: var(--text-dim); font-family: monospace; }
   .io-table .none { color: var(--border); font-style: italic; font-family: inherit; }
 
+  /* ── Results tab (obviewer) ── */
+  #results-pane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+  #results-pane.hidden { display: none; }
+  #results-pane .res-head {
+    display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap;
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+  }
+  #results-pane .res-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  #results-pane .res-endpoint {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px;
+    color: var(--text-dim); background: var(--bg); border: 1px solid var(--border);
+    border-radius: 3px; padding: 3px 7px;
+  }
+  #results-pane .res-badge {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600;
+    padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-dim);
+  }
+  #results-pane .res-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+  #results-pane .res-reload { margin-left: auto; }
+  #results-pane .res-filters {
+    display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 20px; border-bottom: 1px solid var(--border);
+  }
+  #results-pane .res-chip {
+    font-family: inherit; font-size: 11px; color: var(--text-dim); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; cursor: pointer;
+  }
+  #results-pane .res-chip:hover { border-color: var(--accent); color: #fff; }
+  #results-pane .res-chip.on { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
+  #results-pane .res-chip .c { opacity: .7; font-variant-numeric: tabular-nums; }
+  #results-pane .res-scroll { flex: 1; overflow: auto; }
+  #results-pane .res-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  #results-pane .res-table th {
+    position: sticky; top: 0; background: var(--surface); color: var(--text-dim);
+    font-weight: 600; text-transform: uppercase; letter-spacing: .6px; font-size: 10px;
+    text-align: left; padding: 8px 20px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  #results-pane .res-table td {
+    padding: 6px 20px; border-bottom: 1px solid var(--border); vertical-align: middle;
+  }
+  #results-pane .res-table tr { cursor: pointer; }
+  #results-pane .res-table tbody tr:hover { background: rgba(255,255,255,.03); }
+  #results-pane .res-table tr.sel { background: rgba(0,120,212,.14); }
+  #results-pane .res-key {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; color: var(--text);
+    max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    direction: rtl; text-align: left;
+  }
+  #results-pane .res-key bdi { direction: ltr; }
+  #results-pane .res-type {
+    font-family: ui-monospace, monospace; font-size: 10px; font-weight: 600;
+    padding: 1px 6px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap;
+  }
+  #results-pane td.num {
+    text-align: right; font-family: ui-monospace, monospace; color: var(--text-dim);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  #results-pane .res-ds { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-dim); }
+  #results-pane .res-msg { padding: 28px 22px; color: var(--text-dim); font-size: 12.5px; line-height: 1.7; }
+  #results-pane .res-msg h4 { color: var(--text); font-size: 13px; margin: 0 0 8px; }
+  #results-pane .res-msg code {
+    font-family: ui-monospace, monospace; color: var(--text); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px;
+  }
+  #results-pane .res-msg.err h4 { color: var(--error); }
+  #results-pane .res-prev {
+    border-top: 1px solid var(--border); max-height: 44%; display: flex; flex-direction: column;
+  }
+  #results-pane .res-prev-head {
+    display: flex; align-items: center; gap: 10px; padding: 9px 20px; border-bottom: 1px solid var(--border);
+  }
+  #results-pane .res-prev-head .fn {
+    font-family: ui-monospace, monospace; font-size: 12px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #results-pane .res-prev-head .meta { font-size: 11px; color: var(--text-dim); margin-left: auto; white-space: nowrap; }
+  #results-pane .res-prev-body { overflow: auto; padding: 0; }
+  #results-pane .res-prev-body pre {
+    margin: 0; padding: 14px 20px; font-family: ui-monospace, monospace; font-size: 11.5px;
+    line-height: 1.6; white-space: pre; color: var(--text);
+  }
+  #results-pane .res-prev-body iframe { width: 100%; border: 0; min-height: 180px; background: #fff; }
+  #results-pane .res-prev-body table { border-collapse: collapse; font-family: ui-monospace, monospace; font-size: 11px; }
+  #results-pane .res-prev-body th, #results-pane .res-prev-body td { border: 1px solid var(--border); padding: 3px 8px; white-space: nowrap; }
+  #results-pane .res-prev-head a, #results-pane .res-head a { color: var(--accent); text-decoration: none; }
+  #results-pane .res-prev-head a:hover { text-decoration: underline; }
+
   /* ── Header buttons ── */
   .hdr-btn {
     font-family: inherit;
@@ -742,6 +833,9 @@
     <button class="tab-btn" data-tab="filter">
       Filter
     </button>
+    <button class="tab-btn" data-tab="results">
+      Results
+    </button>
     <button id="tab-copy" title="Copy to clipboard" style="display:none">Copy</button>
     <button id="tab-download" title="Download as a file" style="display:none">Download</button>
   </div>
@@ -800,6 +894,7 @@
         <span class="filter-status" id="filter-status"></span>
       </div>
     </div>
+    <div id="results-pane" class="hidden"></div>
     <div id="snake-editor" style="width:100%;height:100%;display:none;"></div>
   </div>
 </div>
@@ -981,11 +1076,13 @@ require(["vs/editor/editor.main"], () => {
       activeTab = btn.dataset.tab;
       document.querySelectorAll(".tab-btn[data-tab]").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      const isCheck  = activeTab === "check";
-      const isFilter = activeTab === "filter";
-      const isEditor = !isCheck && !isFilter;
+      const isCheck   = activeTab === "check";
+      const isFilter  = activeTab === "filter";
+      const isResults = activeTab === "results";
+      const isEditor  = !isCheck && !isFilter && !isResults;
       document.getElementById("check-pane").classList.toggle("hidden", !isCheck);
       document.getElementById("filter-pane").classList.toggle("hidden", !isFilter);
+      document.getElementById("results-pane").classList.toggle("hidden", !isResults);
       document.getElementById("snake-editor").style.display = isEditor ? "" : "none";
       document.getElementById("tab-copy").style.display = isEditor ? "" : "none";
       document.getElementById("tab-download").style.display = isEditor ? "" : "none";
@@ -994,8 +1091,261 @@ require(["vs/editor/editor.main"], () => {
         rightEditor.layout();
       }
       if (isFilter) renderWizard();
+      if (isResults) showResults();
     });
   });
+
+  // ── Results tab (obviewer): browse the benchmark's storage bucket ──────────
+  // Read-only counterpart to `ob remote files list`. Lists the bucket's current
+  // (latest) state via an anonymous S3 GET; no version manifest is consulted.
+  // Storage config comes from the parsed YAML; file classification is path-based
+  // in JS because get_output_paths() lives in the execution stack we don't load.
+  const RES_TYPES = {
+    output:      { label: "output",      color: "#4ec9b0" },
+    report:      { label: "report",      color: "#d7a25a" },
+    metric:      { label: "metric",      color: "#9a93f0" },
+    performance: { label: "performance", color: "#6fb96f" },
+    config:      { label: "config",      color: "#858585" },
+    software:    { label: "software",    color: "#d07cad" },
+    manifest:    { label: "manifest",    color: "#6fa8e0" },
+  };
+  const resState = { sig: null, loading: false, error: null, records: null,
+                     fType: "all", fStage: "all", selKey: null };
+
+  function readStorageConfig(yamlText) {
+    let doc;
+    try { doc = jsyaml.load(yamlText); } catch (_) { return null; }
+    if (!doc || typeof doc !== "object") return null;
+    const s = doc.storage;
+    if (s && typeof s === "object") {
+      return { endpoint: s.endpoint, api: s.api || "S3", bucket: s.bucket_name };
+    }
+    if (typeof s === "string") {
+      return { endpoint: s, api: doc.storage_api || "S3", bucket: doc.storage_bucket_name };
+    }
+    return null;
+  }
+
+  function classifyKey(key) {
+    const segs = key.split("/");
+    const fn = segs[segs.length - 1];
+    if (key.startsWith("config/"))   return { type: "config",   stage: "config",   dataset: "—", fn };
+    if (key.startsWith("software/")) return { type: "software", stage: "software", dataset: "—", fn };
+    if (key.startsWith("versions/")) return { type: "manifest", stage: "manifest", dataset: "—", fn };
+    const dataset = segs.includes("iris") ? "iris" : segs.includes("penguins") ? "penguins" : "—";
+    const STAGE_KW = ["data", "distances", "methods", "metrics"];
+    const lastStage = [...segs].reverse().find(s => STAGE_KW.includes(s));
+    let type = "output";
+    if (fn.endsWith("_report.html") || fn.endsWith(".html")) type = "report";
+    else if (fn.endsWith("_performance.txt")) type = "performance";
+    else if (fn.endsWith(".metrics.txt")) type = "metric";
+    let stage;
+    if (fn.endsWith("_report.html") || fn === "biometrics.tsv" || fn.endsWith(".mapping.json")) stage = "collector";
+    else if (fn.endsWith(".features.csv") || fn.endsWith(".labels.csv")) stage = "data";
+    else if (fn.endsWith(".distances.csv")) stage = "distances";
+    else if (fn.endsWith(".clusters.csv")) stage = "methods";
+    else if (fn.endsWith(".metrics.txt")) stage = "metrics";
+    else stage = lastStage || "data";
+    return { type, stage, dataset, fn };
+  }
+
+  function bucketBase(cfg) {
+    return cfg.endpoint.replace(/\/+$/, "") + "/" + encodeURIComponent(cfg.bucket);
+  }
+  function objectUrl(cfg, key) {
+    return bucketBase(cfg) + "/" + key.split("/").map(encodeURIComponent).join("/");
+  }
+
+  async function listBucket(cfg) {
+    const base = bucketBase(cfg);
+    const nsGet = (root, name) => root.getElementsByTagNameNS("*", name);
+    const out = [];
+    let token = null, guard = 0;
+    do {
+      let url = base + "?list-type=2&max-keys=1000";
+      if (token) url += "&continuation-token=" + encodeURIComponent(token);
+      const res = await fetch(url);
+      const text = await res.text();
+      const xml = new DOMParser().parseFromString(text, "application/xml");
+      const errCode = nsGet(xml, "Code")[0];
+      if (!res.ok || (errCode && nsGet(xml, "Contents").length === 0)) {
+        throw new Error("S3 " + (errCode ? errCode.textContent : res.status));
+      }
+      for (const c of nsGet(xml, "Contents")) {
+        const g = n => (nsGet(c, n)[0] || {}).textContent || "";
+        out.push({
+          key: g("Key"), size: +g("Size"), modified: g("LastModified"),
+          etag: g("ETag").replace(/"/g, ""),
+        });
+      }
+      const trunc = (nsGet(xml, "IsTruncated")[0] || {}).textContent === "true";
+      token = trunc ? (nsGet(xml, "NextContinuationToken")[0] || {}).textContent : null;
+    } while (token && ++guard < 50);
+    return out.map(o => ({ ...o, ...classifyKey(o.key) }));
+  }
+
+  function fmtSize(n) {
+    if (!n) return "0 B";
+    const u = ["B", "KB", "MB", "GB"]; let i = 0, v = n;
+    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+    return (i === 0 ? v : v.toFixed(v < 10 ? 1 : 0)) + " " + u[i];
+  }
+  function fmtDate(s) { const d = new Date(s); return isNaN(d) ? "" : d.toISOString().slice(0, 16).replace("T", " "); }
+
+  function showResults() {
+    const pane = document.getElementById("results-pane");
+    const cfg = readStorageConfig(yamlEditor.getValue());
+    if (!cfg || !cfg.endpoint || !cfg.bucket) {
+      resState.sig = null; resState.records = null;
+      pane.innerHTML = '<div class="res-msg"><h4>No storage bucket declared</h4>' +
+        'This benchmark has no <code>storage</code> configuration, so there are no ' +
+        'published result files to browse. Add <code>storage</code>, <code>storage_api</code> ' +
+        'and <code>storage_bucket_name</code> (or a <code>storage: {endpoint, api, bucket_name}</code> ' +
+        'block) and re-open this tab.</div>';
+      return;
+    }
+    const sig = cfg.endpoint + "|" + cfg.bucket;
+    if (resState.sig === sig && (resState.records || resState.error)) { renderResults(cfg); return; }
+    resState.sig = sig; resState.loading = true; resState.error = null;
+    resState.records = null; resState.selKey = null;
+    renderResults(cfg);
+    listBucket(cfg).then(recs => {
+      if (resState.sig !== sig) return;
+      resState.loading = false; resState.records = recs; renderResults(cfg);
+    }).catch(err => {
+      if (resState.sig !== sig) return;
+      resState.loading = false; resState.error = err; renderResults(cfg);
+    });
+  }
+
+  function renderResults(cfg) {
+    const pane = document.getElementById("results-pane");
+    const host = cfg.endpoint.replace(/^https?:\/\//, "");
+    const head =
+      '<div class="res-head"><span class="res-title">' + escapeHtmlR(cfg.bucket) + '</span>' +
+      '<span class="res-endpoint">' + escapeHtmlR(host) + '</span>' +
+      '<span class="res-badge"><span class="dot"></span>live · latest</span>' +
+      '<button class="hdr-btn res-reload" id="res-reload">Reload</button></div>';
+
+    if (resState.loading) {
+      pane.innerHTML = head + '<div class="res-msg">Listing <code>' + escapeHtmlR(cfg.bucket) +
+        '</code> over anonymous S3…</div>';
+      wireReload(cfg); return;
+    }
+    if (resState.error) {
+      pane.innerHTML = head +
+        '<div class="res-msg err"><h4>Couldn’t list the bucket from the browser</h4>' +
+        '<code>' + escapeHtmlR(String(resState.error.message || resState.error)) + '</code><br><br>' +
+        'A browser request to the gateway needs two things this endpoint may not yet provide:' +
+        '<br>&bull; <b>CORS</b> headers allowing this origin (<code>Access-Control-Allow-Origin</code>).' +
+        '<br>&bull; a <b>TLS certificate</b> whose SAN covers <code>' + escapeHtmlR(host) + '</code>.' +
+        '<br><br>The bucket itself is anonymously readable — verify with:<br>' +
+        '<code>curl \'' + escapeHtmlR(bucketBase(cfg)) + '?list-type=2\'</code><br>' +
+        'or list it from the CLI with <code>ob remote files list</code>.</div>';
+      wireReload(cfg); return;
+    }
+
+    const recs = resState.records || [];
+    const byType = {}; for (const r of recs) byType[r.type] = (byType[r.type] || 0) + 1;
+    let chips = '<button class="res-chip' + (resState.fType === "all" ? " on" : "") +
+      '" data-t="all">all <span class="c">' + recs.length + '</span></button>';
+    for (const t of Object.keys(RES_TYPES)) {
+      if (!byType[t]) continue;
+      chips += '<button class="res-chip' + (resState.fType === t ? " on" : "") + '" data-t="' + t +
+        '" style="color:' + RES_TYPES[t].color + '">' + RES_TYPES[t].label +
+        ' <span class="c">' + byType[t] + '</span></button>';
+    }
+    const filters = '<div class="res-filters">' + chips + '</div>';
+
+    const shown = recs.filter(r => resState.fType === "all" || r.type === resState.fType)
+                      .sort((a, b) => a.key.localeCompare(b.key));
+    let rows = "";
+    for (const r of shown) {
+      const m = RES_TYPES[r.type];
+      rows += '<tr data-key="' + escapeAttrR(r.key) + '"' + (r.key === resState.selKey ? ' class="sel"' : "") + '>' +
+        '<td class="res-key"><bdi>' + escapeHtmlR(r.key) + '</bdi></td>' +
+        '<td class="res-ds">' + r.dataset + '</td>' +
+        '<td><span class="res-type" style="color:' + m.color + '">' + m.label + '</span></td>' +
+        '<td class="num">' + fmtSize(r.size) + '</td>' +
+        '<td class="res-ds">' + fmtDate(r.modified) + '</td></tr>';
+    }
+    const table =
+      '<div class="res-scroll"><table class="res-table"><thead><tr>' +
+      '<th>Object key</th><th>Dataset</th><th>Type</th><th style="text-align:right">Size</th><th>Modified</th>' +
+      '</tr></thead><tbody id="res-rows">' + rows + '</tbody></table></div>';
+    const prev = '<div class="res-prev" id="res-prev" style="display:none"></div>';
+
+    pane.innerHTML = head + filters + table + prev;
+    wireReload(cfg);
+    pane.querySelectorAll(".res-chip").forEach(c =>
+      c.addEventListener("click", () => { resState.fType = c.dataset.t; renderResults(cfg); }));
+    pane.querySelectorAll("#res-rows tr").forEach(tr =>
+      tr.addEventListener("click", () => openResultPreview(cfg, tr.dataset.key)));
+    if (resState.selKey) {
+      const r = recs.find(x => x.key === resState.selKey);
+      if (r) openResultPreview(cfg, r.key, true);
+    }
+  }
+
+  function wireReload(cfg) {
+    const b = document.getElementById("res-reload");
+    if (b) b.addEventListener("click", () => {
+      resState.sig = null; resState.records = null; resState.error = null; showResults();
+    });
+  }
+
+  async function openResultPreview(cfg, key, keepScroll) {
+    const rec = (resState.records || []).find(r => r.key === key);
+    if (!rec) return;
+    resState.selKey = key;
+    document.querySelectorAll("#res-rows tr").forEach(tr =>
+      tr.classList.toggle("sel", tr.dataset.key === key));
+    const box = document.getElementById("res-prev");
+    if (!box) return;
+    box.style.display = "";
+    const url = objectUrl(cfg, key);
+    const headHtml =
+      '<div class="res-prev-head"><span class="fn">' + escapeHtmlR(rec.fn) + '</span>' +
+      '<a href="' + url + '" target="_blank" rel="noopener">download ↗</a>' +
+      '<span class="meta">' + fmtSize(rec.size) + ' · md5 ' + rec.etag.slice(0, 10) + '</span></div>';
+    if (rec.size === 0) {
+      box.innerHTML = headHtml + '<div class="res-msg">Empty object (0 bytes) — a declared output the run produced with no content.</div>';
+      return;
+    }
+    if (rec.size > 262144) {
+      box.innerHTML = headHtml + '<div class="res-msg">' + fmtSize(rec.size) +
+        ' — too large to preview inline. Use <b>download</b>.</div>';
+      return;
+    }
+    box.innerHTML = headHtml + '<div class="res-prev-body"><div class="res-msg">Fetching…</div></div>';
+    const body = box.querySelector(".res-prev-body");
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const text = await res.text();
+      if (resState.selKey !== key) return;
+      if (rec.type === "report" || rec.fn.endsWith(".html")) {
+        const f = document.createElement("iframe");
+        f.setAttribute("sandbox", ""); f.srcdoc = text; body.innerHTML = ""; body.appendChild(f);
+      } else if ((rec.fn.endsWith(".csv") || rec.fn.endsWith(".tsv")) && text.length < 20000) {
+        const sep = rec.fn.endsWith(".tsv") ? "\t" : ",";
+        const lines = text.trim().split(/\r?\n/).slice(0, 60).map(l => l.split(sep));
+        let h = "<table><thead><tr>" + lines[0].map(c => "<th>" + escapeHtmlR(c) + "</th>").join("") + "</tr></thead><tbody>";
+        h += lines.slice(1).map(r => "<tr>" + r.map(c => "<td>" + escapeHtmlR(c) + "</td>").join("") + "</tr>").join("");
+        body.innerHTML = h + "</tbody></table>";
+      } else {
+        body.innerHTML = "<pre>" + escapeHtmlR(text) + "</pre>";
+      }
+    } catch (err) {
+      if (resState.selKey !== key) return;
+      body.innerHTML = '<div class="res-msg err">Preview fetch failed (' +
+        escapeHtmlR(String(err.message || err)) + '). CORS or the TLS-cert mismatch blocks direct ' +
+        'browser reads — use <b>download</b>, which opens the gateway URL directly.</div>';
+    }
+  }
+
+  function escapeHtmlR(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function escapeAttrR(s) { return escapeHtmlR(s).replace(/"/g, "&quot;"); }
 
   // Filter footer buttons
   document.getElementById("filter-back").addEventListener("click", () => {
