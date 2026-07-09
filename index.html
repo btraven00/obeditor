@@ -1087,6 +1087,7 @@ let wizardPicks  = {};
 let wizardParentHash = null;
 let wizardParentUrl  = null;
 let wizardLastResult = null;     // { filtered_yaml, blob_json, blob_packed, parent_hash, parent_url }
+let lastIoSummary    = null;     // parsed io_summary rows [{stage, inputs, outputs}] from the last OK check
 
 // ── Source-URL / trust state ─────────────────────────────────────────────────
 const DEFAULT_TRUSTED_ORGS = ["omnibenchmark", "omni-scrna"];
@@ -1187,7 +1188,31 @@ require(["vs/editor/editor.main"], () => {
 
   // Pull stage ids and dataset names out of the benchmark YAML so the results
   // browser can classify object keys for THIS benchmark, not a hardcoded demo.
+  // Prefer the authoritative stage list from the omnibenchmark parse — the same
+  // source the Check tab's I/O table uses, surfaced here via `wizardStages`
+  // (stage → modules) and `lastIoSummary` (stage → inputs/outputs). A local
+  // js-yaml scan can under-count stages the real parser resolves, so the two
+  // panels would otherwise disagree. Returns null until a successful check has
+  // run (YAML mid-edit or invalid), so callers fall back to the js-yaml scan.
+  function metaFromWorker() {
+    if (!wizardStages || !wizardStages.length) return null;
+    const stages = wizardStages.map(st => String(st.id));
+    // Root stages (no inputs) name their modules after datasets.
+    const rootIds = new Set(
+      (lastIoSummary || [])
+        .filter(r => !r.inputs || r.inputs.length === 0)
+        .map(r => String(r.stage)));
+    const datasets = new Set();
+    for (const st of wizardStages) {
+      if (!rootIds.has(String(st.id))) continue;
+      for (const m of st.modules || []) if (m && m.id != null) datasets.add(String(m.id));
+    }
+    return { stages, stageSet: new Set(stages), datasets: [...datasets] };
+  }
+
   function readBenchmarkMeta(yamlText) {
+    const fromWorker = metaFromWorker();
+    if (fromWorker) return fromWorker;
     let doc;
     try { doc = jsyaml.load(yamlText); } catch (_) { doc = null; }
     const stages = [];
@@ -1195,7 +1220,7 @@ require(["vs/editor/editor.main"], () => {
     if (doc && Array.isArray(doc.stages)) {
       for (const st of doc.stages) {
         if (st && st.id != null) stages.push(String(st.id));
-        
+
         const isRoot = !st || !st.inputs || (Array.isArray(st.inputs) && st.inputs.length === 0);
         if (isRoot) for (const m of (st && st.modules) || []) {
           if (m && m.id != null) datasets.add(String(m.id));
@@ -2005,6 +2030,7 @@ function startWorker(wheelUrl) {
         if (data.ok) {
           snakeModel.setValue(data.snakefile || "");
           runnerModel.setValue(data.runner || "");
+          lastIoSummary = data.io_summary ? JSON.parse(data.io_summary) : null;
           updateWizardData(data.wizard, data.parent_hash, data.parent_url);
           setPyodideStatus("ready", "Ready");
           setStatus("ok", "Snakefile + run.sh updated");
@@ -2018,6 +2044,7 @@ function startWorker(wheelUrl) {
           setPyodideStatus("error", "Error");
           setStatus("error", errText.split("\n")[0]);
           markErrorLine(data.line);
+          lastIoSummary = null;
           updateWizardData(null, null, null);
         }
         document.getElementById("version-select").disabled = false;
