@@ -171,7 +171,7 @@
     border-bottom: 2px solid var(--accent);
     background: rgba(0,120,212,.08);
   }
-  #tab-copy, #tab-download {
+  #tab-copy, #tab-download, #comment-btn {
     align-self: center;
     font-size: 11px;
     padding: 2px 8px;
@@ -182,9 +182,10 @@
     cursor: pointer;
     transition: all .15s;
   }
+  #comment-btn { margin-left: 8px; }
   #tab-copy { margin-left: auto; margin-right: 8px; }
   #tab-download { margin-right: 10px; }
-  #tab-copy:hover, #tab-download:hover { border-color: var(--accent); color: var(--text); }
+  #tab-copy:hover, #tab-download:hover, #comment-btn:hover { border-color: var(--accent); color: var(--text); }
 
   /* ── Editors container ── */
   #editors {
@@ -873,6 +874,7 @@
   <div class="pane-label">
     benchmark.yaml
     <span class="badge">YAML</span>
+    <button id="comment-btn" title="Comment / uncomment selected lines (Ctrl+/)">Comment</button>
     <span id="repo-tag" title="Source repository on GitHub">
       <a id="repo-tag-org" target="_blank" rel="noopener"></a>
       <span class="sep">/</span>
@@ -1065,6 +1067,10 @@ let rightEditor = null;          // single editor, two models
 let snakeModel  = null;
 let runnerModel = null;
 let activeTab   = "check";       // "check" | "snakefile" | "runner"
+let snakefileFresh   = false;    // do the Snakefile/run.sh models match the current YAML?
+let snakefilePending = false;    // a lazy generation is in flight
+let convertSeq       = 0;        // bumps on every convert result
+let snakefileReqSeq  = -1;       // convertSeq captured when the in-flight gen was requested
 let worker      = null;
 let pyodideReady = false;
 let debounceTimer = null;
@@ -1149,6 +1155,7 @@ require(["vs/editor/editor.main"], () => {
       if (isEditor) {
         rightEditor.setModel(activeTab === "snakefile" ? snakeModel : runnerModel);
         rightEditor.layout();
+        if (!snakefileFresh) requestSnakefile();
       }
       if (isFilter) renderWizard();
       if (isResults) showResults();
@@ -1738,6 +1745,10 @@ require(["vs/editor/editor.main"], () => {
 
   // Load-from-URL button + source pill clear
   document.getElementById("load-url-btn").addEventListener("click", openLoadUrlModal);
+  document.getElementById("comment-btn").addEventListener("click", () => {
+    yamlEditor.focus();
+    yamlEditor.getAction("editor.action.commentLine").run();
+  });
   document.getElementById("source-clear").addEventListener("click", () => setSourceUrl(null));
 
   loadCatalogAndStart();
@@ -1904,6 +1915,7 @@ async function fetchAndLoad(parsed) {
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
     const text = await resp.text();
     if (aborted) return;
+    blankViews();
     yamlEditor.setValue(text);
     setSourceUrl(parsed.rawUrl);
     closeModal();
@@ -2005,7 +2017,7 @@ function startWorker(wheelUrl) {
   setOverlay("Initialising Pyodide…");
   setPyodideStatus("loading", "Starting…");
   // Cache-bust: worker.js evolves with index.html; keep them aligned.
-  worker = new Worker("worker.js?v=10");
+  worker = new Worker("worker.js?v=12");
 
   worker.onmessage = ({ data }) => {
     switch (data.type) {
@@ -2027,20 +2039,25 @@ function startWorker(wheelUrl) {
         break;
       case "result":
         setOverlay(null);
+        convertSeq++;
         if (data.ok) {
-          snakeModel.setValue(data.snakefile || "");
-          runnerModel.setValue(data.runner || "");
           lastIoSummary = data.io_summary ? JSON.parse(data.io_summary) : null;
           updateWizardData(data.wizard, data.parent_hash, data.parent_url);
           setPyodideStatus("ready", "Ready");
-          setStatus("ok", "Snakefile + run.sh updated");
+          setStatus("ok", "Check updated");
           clearErrorLine();
+          // Snakefile / run.sh are generated lazily; mark stale and (re)fetch if
+          // one of those tabs is currently open.
+          snakefileFresh = false;
+          if (activeTab === "snakefile" || activeTab === "runner") requestSnakefile();
+          else { snakeModel.setValue("# Open this tab to generate the Snakefile.\n"); runnerModel.setValue("# Open this tab to generate run.sh.\n"); }
         } else {
           const errText = data.error || "Unknown error";
           const commented = "# Error\n#\n" +
             errText.split("\n").map(l => "# " + l).join("\n") + "\n";
           snakeModel.setValue(commented);
           runnerModel.setValue(commented);
+          snakefileFresh = true;   // showing the error; don't try to regenerate
           setPyodideStatus("error", "Error");
           setStatus("error", errText.split("\n")[0]);
           markErrorLine(data.line);
@@ -2049,6 +2066,28 @@ function startWorker(wheelUrl) {
         }
         document.getElementById("version-select").disabled = false;
         renderCheck(data.ok, data.error, data.stats, data.mermaid, data.io_summary, data.mermaid_links);
+        break;
+      case "snakefile":
+        snakefilePending = false;
+        if (data.ok) {
+          snakeModel.setValue(data.snakefile || "");
+          runnerModel.setValue(data.runner || "");
+          setStatus("ok", "Snakefile + run.sh generated");
+        } else {
+          const errText = data.error || "Unknown error";
+          const commented = "# Error\n#\n" +
+            errText.split("\n").map(l => "# " + l).join("\n") + "\n";
+          snakeModel.setValue(commented);
+          runnerModel.setValue(commented);
+          setStatus("error", errText.split("\n")[0]);
+        }
+        // If the YAML changed while this was generating, the output is stale —
+        // regenerate rather than leaving a mismatched Snakefile on screen.
+        if (snakefileReqSeq === convertSeq) {
+          snakefileFresh = true;
+        } else if (activeTab === "snakefile" || activeTab === "runner") {
+          requestSnakefile();
+        }
         break;
       case "filtered":
         if (data.ok) {
@@ -2076,6 +2115,18 @@ function scheduleConvert(delay = 600) {
     setStatus("idle", "Converting…");
     worker.postMessage({ type: "convert", yaml });
   }, delay);
+}
+
+// Lazily generate the Snakefile + run.sh for the current YAML. Cheap views
+// (graph/check) don't need this; the full lineage expansion runs only on demand.
+function requestSnakefile() {
+  if (!pyodideReady || snakefilePending || snakefileFresh) return;
+  snakefilePending = true;
+  snakefileReqSeq = convertSeq;
+  snakeModel.setValue("# Generating Snakefile…\n");
+  runnerModel.setValue("# Generating run.sh…\n");
+  setStatus("idle", "Generating Snakefile…");
+  worker.postMessage({ type: "snakefile", yaml: yamlEditor.getValue() });
 }
 
 // ── UI helpers ───────────────────────────────────────────────────────────────
@@ -2238,7 +2289,8 @@ function renderStats(statsJson) {
     grid.appendChild(chip);
   };
   addChip(stats.stages, "stages");
-  addChip(stats.total, "total rules");
+  addChip(stats.modules, "modules");
+  if (stats.total != null) addChip(stats.total.toLocaleString(), "total rules");
   for (const [sid, cnt] of Object.entries(stats.by_stage || {})) {
     addChip(cnt, sid);
   }
@@ -2266,6 +2318,19 @@ function renderCheck(ok, errMsg, statsJson, mermaidSrc, ioSummaryJson, mermaidLi
     renderMermaid(mermaidSrc);
   }
   if (ok && ioSummaryJson) renderIoSummary(ioSummaryJson);
+}
+
+// Clear stale renders (graph, snakefile, io) when loading a fresh benchmark so
+// the old one doesn't linger while the new conversion runs.
+function blankViews() {
+  const vp = document.getElementById("mermaid-viewport");
+  if (vp) vp.innerHTML = "";
+  document.getElementById("mermaid-section").style.display = "none";
+  document.getElementById("io-section").style.display = "none";
+  if (typeof snakeModel !== "undefined" && snakeModel) snakeModel.setValue("");
+  if (typeof runnerModel !== "undefined" && runnerModel) runnerModel.setValue("");
+  snakefileFresh = false;
+  lastIoSummary = null;
 }
 
 function renderIoSummary(ioSummaryJson) {
